@@ -70,7 +70,7 @@ class TD3:
         self.target_actor = Actor(env=self.env).to(self.device)
         self.target_critic1 = Critic(env=self.env).to(self.device)
         self.target_critic2 = Critic(env=self.env).to(self.device)
-
+        self.update_int=2
         self.gamma = 0.99
         self.tau = 0.005
         self.actor.load_state_dict(self.target_actor.state_dict())
@@ -169,7 +169,7 @@ class TD3:
         self.critic2.optim.step()
 
         
-        if i % 2 == 0:
+        if i % self.update_int == 0:
             actor_loss = -self.critic1(states, self.actor(states)).mean()
             self.actor.optim.zero_grad()
             actor_loss.backward()
