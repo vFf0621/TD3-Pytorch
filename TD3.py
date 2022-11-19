@@ -22,7 +22,7 @@ class Actor(nn.Module):
 
         self.relu = nn.ReLU()
         self.linear2 = nn.Linear(hidden + 100, hidden)
-        self.linear3 = nn.Linear(hidden, 1)
+        self.linear3 = nn.Linear(hidden, env.action_space.shape[0])
         self.tanh = nn.Tanh()
         self.optim = optim.Adam(self.parameters(), lr = lr)
     def forward(self, state):
