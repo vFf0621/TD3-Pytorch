@@ -1,7 +1,9 @@
 # TD3-Pytorch
 TD3 Implemented in Pytorch on Mujoco Environment
 
-Requirements: Mujoco v2.3.0
+Requirements: 
+
+Mujoco v2.3.0
 
 PyToch v1.13
 
