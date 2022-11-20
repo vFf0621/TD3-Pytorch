@@ -83,6 +83,7 @@ class TD3:
         self.action_high = torch.from_numpy(self.env.action_space.high).\
         to(self.device)
         s = env.reset()[0]
+        self.count = 0
         for i in range(100):
             done = False
             while not done:
@@ -141,7 +142,7 @@ class TD3:
         
         return states, actions, states_, rewards, dones
         
-    def train(self, i):
+    def train(self):
     
         states, actions, states_, rewards, dones = self.sample()
         target_action = torch.clamp(self.target_actor(states_) + \
@@ -169,11 +170,10 @@ class TD3:
         self.critic2.optim.step()
 
         
-        if i % self.update_int == 0:
+        if self.count % self.update_int == 0:
             actor_loss = -self.critic1(states, self.actor(states)).mean()
             self.actor.optim.zero_grad()
             actor_loss.backward()
             self.actor.optim.step()
             self.soft_update()
-        
-        
+        count += 1
