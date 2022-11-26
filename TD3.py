@@ -176,4 +176,4 @@ class TD3:
             actor_loss.backward()
             self.actor.optim.step()
             self.soft_update()
-        count += 1
+        self.count += 1
