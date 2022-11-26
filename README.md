@@ -18,4 +18,4 @@ This is the plot of the average rewards for 100 episodes for Walker2D-v4 environ
 
 
 
-![ScreenRecorderProject3](https://user-images.githubusercontent.com/29249318/204104783-6e02b6d4-7931-4163-abbc-f68a6a015f8a.gif)
+![ScreenRecorderProject3_1](https://user-images.githubusercontent.com/29249318/204104861-a7686495-3d40-4e40-a1d6-a57f4786ffd7.gif)
