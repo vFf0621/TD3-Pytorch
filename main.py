@@ -15,7 +15,7 @@ if __name__ == '__main__':
     env = gym.make('InvertedPendulum-v4', render_mode="human")
     agent = TD3(env)
     ys = []
-    eps = 500
+    eps = 2000
     xs = list(range(eps))
     print("Replay Buffer Initialized")
     for j in range(eps):
