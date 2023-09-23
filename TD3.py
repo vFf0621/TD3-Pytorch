@@ -15,7 +15,7 @@ import gym
 import random
 import numpy as np
 class Actor(nn.Module):
-    def __init__(self, env, hidden = 300, lr = 0.001):
+    def __init__(self, env, hidden = 300, lr = 0.001, num_layers=3):
         super().__init__()
         info = []
         info.append(env.observation_space.shape[0], 
@@ -35,7 +35,7 @@ class Actor(nn.Module):
 
     
 class Critic(nn.Module):
-    def __init__(self, env, hidden=300, lr = 0.001):
+    def __init__(self, env, hidden=300, lr = 0.001, num_layers=3):
         super().__init__()
         info = []
         info.append(env.observation_space.shape[0] + env.action_space.shape[0], 
