@@ -29,6 +29,7 @@ class Actor(nn.Module):
                 info.append(nn.Tanh())
         self.net = nn.Sequential(*info)
         self.optim = optim.Adam(self.parameters(), lr = lr)
+    
     def forward(self, state):
 
         return self.net(state)
@@ -84,6 +85,7 @@ class TD3:
         s = env.reset()[0]
         self.count = 0
         agent.batch_size = BATCH_SIZE
+    
     def act(self, state):
         if isinstance(state, np.ndarray):
             state = torch.from_numpy(state).to(self.device)
