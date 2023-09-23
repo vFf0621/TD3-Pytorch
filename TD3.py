@@ -58,7 +58,7 @@ class Critic(nn.Module):
         return self.net(x)
   
 class TD3:
-    def __init__(self, env):
+    def __init__(self, env, BATCH_SIZE=100):
         self.env = env
         self.device = torch.device("cuda" if\
         torch.cuda.is_available() else "cpu")
@@ -83,6 +83,7 @@ class TD3:
         to(self.device)
         s = env.reset()[0]
         self.count = 0
+        agent.batch_size = BATCH_SIZE
     def act(self, state):
         if isinstance(state, np.ndarray):
             state = torch.from_numpy(state).to(self.device)
@@ -105,8 +106,8 @@ class TD3:
                       self.target_actor.parameters()):
            target_param.data.copy_(self.tau * param.data + 
                               (1 - self.tau) * target_param.data)
-    def sample(self, batch_size = 100):
-        t = random.sample(self.replay_buffer, batch_size)
+    def sample(self):
+        t = random.sample(self.replay_buffer, agent.batch_size)
         actions = []
         states = []
         dones = []
