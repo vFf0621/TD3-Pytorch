@@ -15,17 +15,18 @@ import gym
 import random
 import numpy as np
 class Actor(nn.Module):
-    def __init__(self, env, hidden = 300, lr = 0.001, num_layers=3):
+    def __init__(self, env, hidden = 300, lr = 0.001, num_layers=2):
         super().__init__()
         info = []
-        info.append(env.observation_space.shape[0], 
-                                           hidden )
+        info.append(nn.Linear(env.observation_space.shape[0], 
+                                           hidden ))
+        info.append(nn.ReLU())
         for i in range(num_layers):
             if i != num_layers - 1:
-                info.append(nn.Linear(hidden, hidden)
+                info.append(nn.Linear(hidden, hidden))
                 info.append(nn.ReLU())
             else:
-                info.append(nn.Linear(hidden, env.action_space.shape[0])
+                info.append(nn.Linear(hidden, env.action_space.shape[0]))
                 info.append(nn.Tanh())
         self.net = nn.Sequential(*info)
         self.optim = optim.Adam(self.parameters(), lr = lr)
@@ -36,17 +37,17 @@ class Actor(nn.Module):
 
     
 class Critic(nn.Module):
-    def __init__(self, env, hidden=300, lr = 0.001, num_layers=3):
+    def __init__(self, env, hidden=300, lr = 0.001, num_layers=2):
         super().__init__()
         info = []
-        info.append(env.observation_space.shape[0] + env.action_space.shape[0], 
-                                           hidden )
+        info.append(nn.Linear(env.observation_space.shape[0] + env.action_space.shape[0], 
+                                           hidden ))
         for i in range(num_layers):
             if i != num_layers - 1:
-                info.append(nn.Linear(hidden, hidden)
+                info.append(nn.Linear(hidden, hidden))
                 info.append(nn.ReLU())
             else:
-                info.append(nn.Linear(hidden, env.action_space.shape[0])
+                info.append(nn.Linear(hidden, 1))
                 info.append(nn.Identity())
         self.net = nn.Sequential(*info)
         self.optim = optim.Adam(self.parameters(), lr = lr)
@@ -82,9 +83,8 @@ class TD3:
         self.reward_buffer = deque(maxlen=100)
         self.action_high = torch.from_numpy(self.env.action_space.high).\
         to(self.device)
-        s = env.reset()[0]
         self.count = 0
-        agent.batch_size = BATCH_SIZE
+        self.batch_size = BATCH_SIZE
     
     def act(self, state):
         if isinstance(state, np.ndarray):
@@ -109,7 +109,7 @@ class TD3:
            target_param.data.copy_(self.tau * param.data + 
                               (1 - self.tau) * target_param.data)
     def sample(self):
-        t = random.sample(self.replay_buffer, agent.batch_size)
+        t = random.sample(self.replay_buffer, self.batch_size)
         actions = []
         states = []
         dones = []
