@@ -11,7 +11,6 @@ import torch
 from torch import optim
 from torch import nn
 from collections import deque
-import gym
 import random
 import numpy as np
 class Actor(nn.Module):
@@ -19,11 +18,11 @@ class Actor(nn.Module):
         super().__init__()
         info = []
         info.append(nn.Linear(env.observation_space.shape[0], 
-                                           hidden ))
+                                           hidden+100 ))
         info.append(nn.ReLU())
         for i in range(num_layers):
             if i != num_layers - 1:
-                info.append(nn.Linear(hidden, hidden))
+                info.append(nn.Linear(hidden+100, hidden))
                 info.append(nn.ReLU())
             else:
                 info.append(nn.Linear(hidden, env.action_space.shape[0]))
@@ -41,15 +40,17 @@ class Critic(nn.Module):
         super().__init__()
         info = []
         info.append(nn.Linear(env.observation_space.shape[0] + env.action_space.shape[0], 
-                                           hidden ))
-        for i in range(num_layers):
-            if i != num_layers - 1:
-                info.append(nn.Linear(hidden, hidden))
-                info.append(nn.ReLU())
-            else:
-                info.append(nn.Linear(hidden, 1))
-                info.append(nn.Identity())
+                                           hidden+100))
+        
+        info1 = []
+        
+        info1.append(nn.Linear(hidden+env.action_space.shape[0]+100, hidden))
+        info1.append(nn.ReLU())
+
+        info1.append(nn.Linear(hidden, 1))
+        info1.append(nn.Identity())
         self.net = nn.Sequential(*info)
+        self.net1 = nn.Sequential(*info1)
         self.optim = optim.Adam(self.parameters(), lr = lr)
 
 
@@ -57,7 +58,10 @@ class Critic(nn.Module):
         if len(action.shape) < len(state.shape):
             action = action.unsqueeze(-1)
         x = torch.cat([state, action], dim=1)
-        return self.net(x)
+        x = self.net(x)
+        x = torch.cat([x, action], -1)
+
+        return self.net1(x)
   
 class TD3:
     def __init__(self, env, BATCH_SIZE=100):
@@ -142,7 +146,7 @@ class TD3:
         states, actions, states_, rewards, dones = self.sample()
         target_action = torch.clamp(self.target_actor(states_) + \
         torch.clamp(torch.normal(mean=torch.tensor([0.]), std=torch.tensor([0.2])),
-                   -0.4, 0.4).to(self.device), -self.action_high, self.action_high)
+                   -0.5, 0.5).to(self.device), -self.action_high, self.action_high)
         q1_ = self.target_critic1(states_, target_action).view(-1)
         q2_ = self.target_critic2(states_, target_action).view(-1)
         q1_[dones] = 0.
@@ -158,17 +162,17 @@ class TD3:
 
         loss1 = self.loss(target_q, q1)
         loss2 = self.loss(target_q, q2)
-        loss = loss1 + loss2
+        loss = (loss1 + loss2)/2
         loss.backward()
         self.critic1.optim.step()
 
         self.critic2.optim.step()
 
-        
+        self.count += 1
+
         if self.count % self.update_int == 0:
             actor_loss = -self.critic1(states, self.actor(states)).mean()
             self.actor.optim.zero_grad()
             actor_loss.backward()
             self.actor.optim.step()
             self.soft_update()
-        self.count += 1
