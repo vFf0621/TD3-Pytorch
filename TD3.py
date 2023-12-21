@@ -31,7 +31,7 @@ class Actor(nn.Module):
                 info.append(nn.Linear(hidden, env.action_space.shape[0]))
                 info.append(nn.Tanh())
         self.net = nn.Sequential(*info)
-        self.optim = optim.Adam(self.parameters(), lr = lr, weight_decay=0.001)
+        self.optim = optim.Adam(self.parameters(), lr = lr, weight_decay=0.0001)
     
     def forward(self, state):
 
@@ -59,7 +59,7 @@ class Critic(nn.Module):
         info1.append(nn.Identity())
         self.net = nn.Sequential(*info)
         self.net1 = nn.Sequential(*info1)
-        self.optim = optim.Adam(self.parameters(), lr = lr, weight_decay=0.001)
+        self.optim = optim.Adam(self.parameters(), lr = lr, weight_decay=0.0001)
 
 
     def forward(self, state, action):
