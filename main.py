@@ -1,4 +1,5 @@
 
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -29,7 +30,7 @@ def KF(x_meas, x_est, P_est):
     return x_est, P_est
 
 if __name__ == '__main__':
-    env = gym.make('Walker2d-v4')
+    env = gym.make('Walker2d-v2')
     project_name = 'TD3'
     wandb.init(project=project_name, entity='fguan06', settings=wandb.Settings(start_method="thread"))
     wandb.run.name = "TD3-Walker2D"
@@ -89,7 +90,7 @@ if __name__ == '__main__':
         ret_lis = torch.Tensor(ret_lis).to(agent.device).float()
         agent.lambda_opt.zero_grad()
         Q_ = agent.get_target_val_est(torch.Tensor(state_list).to(agent.device).float(), torch.Tensor(action_list).to(agent.device).float())
-        loss = nn.MSELoss()(Q_, ret_lis.detach())
+        loss = nn.SmoothL1Loss()(Q_, ret_lis.detach())
         loss.backward()
         d = {}
 
@@ -98,8 +99,8 @@ if __name__ == '__main__':
         agent.lambda_opt.step()
 
                 
-                
-
+        d["lambd_loss"] = loss.item()
+        d["lambd_diff"] = (Q_ - ret_lis.detach()).mean()
         d["return"] = episode_reward
         d["lambd"] = agent.lambd.item()
         wandb.log(step=step, data=d)
@@ -110,3 +111,8 @@ if __name__ == '__main__':
         print("Episode", eps, "Episode Reward", episode_reward, ", Average Reward", 
               mean)
     plt.plot(xs, ys)
+    
+    
+    
+    
+    
