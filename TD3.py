@@ -14,63 +14,55 @@ from collections import deque
 import random
 import numpy as np
 class Actor(nn.Module):
-    def __init__(self, env, hidden = 300, lr = 0.0004, num_layers=2):
+    def __init__(self, env, hidden = 300, lr = 0.001, num_layers=3):
         super().__init__()
         info = []
         info.append(nn.Linear(env.observation_space.shape[0], 
                                            hidden+100 ))
         info.append(nn.ReLU())
-        info.append(nn.LayerNorm(hidden+100))
-
-        for i in range(num_layers):
+        for i in range(num_layers-1):
             if i != num_layers - 1:
                 info.append(nn.Linear(hidden+100, hidden))
                 info.append(nn.ReLU())
-                info.append(nn.LayerNorm(hidden))
             else:
                 info.append(nn.Linear(hidden, env.action_space.shape[0]))
                 info.append(nn.Tanh())
         self.net = nn.Sequential(*info)
-        self.optim = optim.Adam(self.parameters(), lr = lr, weight_decay=0.0001)
+        self.optim = optim.Adam(self.parameters(), lr = lr)
     
     def forward(self, state):
 
         return self.net(state)
-    
 
     
 class Critic(nn.Module):
-    def __init__(self, env, hidden=300, lr = 0.0004, num_layers=2):
+    def __init__(self, env, hidden=300, lr = 0.001):
         super().__init__()
         info = []
         info.append(nn.Linear(env.observation_space.shape[0] + env.action_space.shape[0], 
                                            hidden+100))
+        
         info.append(nn.ReLU())
-        info.append(nn.LayerNorm(hidden+100))
-
         info1 = []
         
         info1.append(nn.Linear(hidden+env.action_space.shape[0]+100, hidden))
         info1.append(nn.ReLU())
-        info1.append(nn.LayerNorm(hidden))
-
 
         info1.append(nn.Linear(hidden, 1))
-        info1.append(nn.Identity())
         self.net = nn.Sequential(*info)
         self.net1 = nn.Sequential(*info1)
-        self.optim = optim.Adam(self.parameters(), lr = lr, weight_decay=0.0001)
+        self.optim = optim.Adam(self.parameters(), lr = lr)
 
 
     def forward(self, state, action):
         if len(action.shape) < len(state.shape):
             action = action.unsqueeze(-1)
-        x = torch.cat([state, action], dim=-1)
+        x = torch.cat([state, action], dim=1)
         x = self.net(x)
         x = torch.cat([x, action], -1)
 
-        return self.net1(x).view(-1)
-
+        return self.net1(x)
+  
 class TD3:
     def __init__(self, env, BATCH_SIZE=100):
         self.env = env
@@ -85,52 +77,28 @@ class TD3:
         self.target_critic2 = Critic(env=self.env).to(self.device)
         self.update_int=2
         self.gamma = 0.99
-
         self.tau = 0.005
+        self.max_dev = -99999
         self.actor.load_state_dict(self.target_actor.state_dict())
         self.critic1.load_state_dict(self.target_critic1.state_dict())
         self.critic2.load_state_dict(self.target_critic2.state_dict())
-
         self.replay_buffer = deque(maxlen=1000000)
         self.loss = torch.nn.MSELoss()
+        self.loss_buf = torch.zeros(10).to(self.device)
         self.reward_buffer = deque(maxlen=100)
         self.action_high = torch.from_numpy(self.env.action_space.high).\
         to(self.device)
         self.count = 0
         self.batch_size = BATCH_SIZE
-        self.lambd = nn.Parameter(torch.tensor(0.5).to(self.device))
-        self.lambda_opt = torch.optim.Adam([self.lambd], 1e-3)
-
-    def _get_values(self, state, action):
-
-        return self.critic1(state, action).view(-1), self.critic2(state, action).view(-1)
-    def _get_target_values(self, state, action):
-        if isinstance(state, np.ndarray):
-            state = torch.from_numpy(state).to(self.device).float()
-        if isinstance(action, np.ndarray):
-            action = torch.from_numpy(action).to(self.device).float()
-        with torch.no_grad():
-            return self.target_critic1(state, action), self.target_critic2(state, action)
-    def get_target_val_est(self, state, action, clip=False):
-        with torch.no_grad():
-            Q1, Q2 = self._get_target_values(state, action)
-            min_q = torch.min(Q1, Q2)
-            max_q = torch.max(Q1, Q2)
-            if clip:
-               lambd = torch.clip(self.lambd, 0, 1)
-        if not clip:
-            lambd = self.lambd
-        x = lambd * min_q + (1-lambd)*max_q
-        return x
-    def act(self, state, eval=False):
+    
+    def act(self, state):
         if isinstance(state, np.ndarray):
             state = torch.from_numpy(state).to(self.device)
         state = state.float().to(self.device)
-        if not eval:
-            return torch.clamp(self.actor(state)+torch.normal(mean=torch.tensor([0.]),
+        
+        return torch.clamp(self.actor(state)+torch.normal(mean=torch.tensor([0.]),
             std=torch.tensor([0.1])).to(self.device), -self.action_high, 
             self.action_high).cpu().detach().numpy()
-        return self.actor(state)
     def soft_update(self):
         for param, target_param in zip(self.critic1.parameters(),
                                      self.target_critic1.parameters()):
@@ -180,13 +148,15 @@ class TD3:
         target_action = torch.clamp(self.target_actor(states_) + \
         torch.clamp(torch.normal(mean=torch.tensor([0.]), std=torch.tensor([0.2])),
                    -0.5, 0.5).to(self.device), -self.action_high, self.action_high)
-        with torch.no_grad():
-            q_ = self.get_target_val_est(states_, target_action).view(-1)
-            q_[dones] = 0.
-            target_q = rewards + self.gamma * q_
+        q1_ = self.target_critic1(states_, target_action).view(-1)
+        q2_ = self.target_critic2(states_, target_action).view(-1)
+        q1_[dones] = 0.
+        q2_[dones] = 0.
+        q_ = torch.min(q1_, q2_)
+        target_q = rewards + self.gamma * q_
 
-        q1, q2 = self._get_values(states, actions)
-
+        q1 = self.critic1(states, actions).view(-1)
+        q2 = self.critic2(states, actions).view(-1)
         self.critic1.optim.zero_grad()
         self.critic2.optim.zero_grad()
 
@@ -194,9 +164,7 @@ class TD3:
         loss2 = self.loss(target_q, q2)
         loss = (loss1 + loss2)/2
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.critic1.parameters(), 100)
-        torch.nn.utils.clip_grad_norm_(self.critic2.parameters(), 100)
-        
+
         self.critic1.optim.step()
 
         self.critic2.optim.step()
@@ -207,9 +175,5 @@ class TD3:
             actor_loss = -self.critic1(states, self.actor(states)).mean()
             self.actor.optim.zero_grad()
             actor_loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 100)
-
             self.actor.optim.step()
             self.soft_update()
-
-
