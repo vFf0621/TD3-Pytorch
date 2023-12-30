@@ -1,5 +1,6 @@
 
 
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -18,19 +19,11 @@ import wandb
 x_est = 0.0  # initial state estimate
 P_est = 1.0  # initial estimate covariance
 Q = 0.1      # process noise covariance
-R = 300      # measurement noise covariance
+R = 1      # measurement noise covariance
 
-def KF(x_meas, x_est, P_est):
-    x_pred = x_est  # since in 1D, the state does not change if no control input is given
-    P_pred = P_est + Q
-
-    K = P_pred / (P_pred + R)  # Kalman Gain
-    x_est = x_pred + K * (x_meas - x_pred)
-    P_est = (1 - K) * P_pred
-    return x_est, P_est
 
 if __name__ == '__main__':
-    env = gym.make('Walker2d-v2')
+    env = gym.make('Ant-v2')
     project_name = 'TD3'
     wandb.init(project=project_name, entity='fguan06', settings=wandb.Settings(start_method="thread"))
     wandb.run.name = "TD3-Walker2D"
@@ -47,20 +40,23 @@ if __name__ == '__main__':
     eps = 0
     loss = 0
     prev_r = -99999
+    max_dev = -99999
+    term = 0
+    x_est = 0 # initial state estimate
 
     while not step > 1000000:
         done = False
+        trunc = False
         episode_reward = 0
         s = env.reset()[0]
         ret_lis = []
         eps += 1
         state_list = []
         action_list = []
-        x_est = 0.0  # initial state estimate
         P_est = 1.0  # initial estimate covariance
         lambd_lis = []
         xs = []
-        for i in range(1000):
+        while not (trunc or done):
             state_list.append(s)
 
             action = agent.act(s, eva)
@@ -68,7 +64,8 @@ if __name__ == '__main__':
             torch.clamp(torch.normal(mean=torch.tensor([0.]), std=torch.tensor([0.2])),
                    -0.5, 0.5).to(agent.device), -agent.action_high, agent.action_high).detach().cpu().tolist()
             action_list.append(target_action)
-            s_, r, done, _, _ = env.step(action)
+            s_, r, done, trunc, _ = env.step(action)
+
             agent.replay_buffer.append((s, action, s_, r, done))
             s = s_
             episode_reward += r
@@ -81,28 +78,34 @@ if __name__ == '__main__':
             if done:
                 break 
         ret_lis[-1] = torch.FloatTensor(ret_lis[-100:]).mean()/(1-agent.gamma)
+        
         for k in reversed(range(len(ret_lis)-1)):
             ret_lis[k] = ret_lis[k] + agent.gamma* ret_lis[k+1]
+        plt.plot(list(range(len(ret_lis))), ret_lis)
+        x_est =ret_lis[0]
+        plt.plot(list(range(len(ret_lis))), ret_lis)
 
-       # for l in range(len(ret_lis)):
-        #    x_est, P_est = KF(ret_lis[l], x_est, P_est)
-         #   ret_lis[l] = x_est
         ret_lis = torch.Tensor(ret_lis).to(agent.device).float()
-        agent.lambda_opt.zero_grad()
-        Q_ = agent.get_target_val_est(torch.Tensor(state_list).to(agent.device).float(), torch.Tensor(action_list).to(agent.device).float())
-        loss = nn.SmoothL1Loss()(Q_, ret_lis.detach())
-        loss.backward()
+        #agent.lambda_opt.zero_grad()
+        #loss = nn.SmoothL1Loss()(Q_, ret_lis.detach())
+        #loss.backward()
         d = {}
 
         
-        d["lambd_grad_norm"] = torch.nn.utils.clip_grad_norm_([agent.lambd], 100).mean()
-        agent.lambda_opt.step()
-
+        #d["lambd_grad_norm"] = torch.nn.utils.clip_grad_norm_([agent.lambd], 100).mean()
+        #agent.lambda_opt.step()
+        ma = (torch.max(*agent._get_target_values(torch.Tensor(state_list).to(agent.device).float(), torch.Tensor(action_list).to(agent.device).float())))
                 
-        d["lambd_loss"] = loss.item()
-        d["lambd_diff"] = (Q_ - ret_lis.detach()).mean()
+        d["lambd_loss"] = loss
+        d["Q_max"] = ma.mean()
+        d["Q_max_var"] = ma.var()
+        mi = (torch.min(*agent._get_target_values(torch.Tensor(state_list).to(agent.device).float(), torch.Tensor(action_list).to(agent.device).float())))
+        d["Q_min"] = mi.mean()
+        d["Q_min_var"] = mi.var()
+        d["Q_diff"] = d["Q_max"] - d["Q_min"]
         d["return"] = episode_reward
         d["lambd"] = agent.lambd.item()
+        d["graph"] = plt
         wandb.log(step=step, data=d)
         agent.reward_buffer.append(episode_reward)
         mean = np.mean(agent.reward_buffer)
@@ -114,5 +117,4 @@ if __name__ == '__main__':
     
     
     
-    
-    
+        
