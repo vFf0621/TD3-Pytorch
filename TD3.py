@@ -19,7 +19,8 @@ class Actor(nn.Module):
         info = []
         info.append(nn.Linear(env.observation_space.shape[0], 
                                            hidden+100 ))
-        info.append(nn.ReLU())
+        info.append(nn.LeakyReLU())
+        info.append(nn.LayerNorm(hidden))
 
         info.append(nn.Linear(hidden+100, hidden))
         info.append(nn.LeakyReLU())
