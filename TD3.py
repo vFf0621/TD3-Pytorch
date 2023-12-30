@@ -28,17 +28,15 @@ class Actor(nn.Module):
         info = []
         info.append(nn.Linear(env.observation_space.shape[0], 
                                            hidden+100 ))
-        info.append(nn.ReLU())
-
-        for i in range(num_layers):
-            if i != num_layers - 1:
-                info.append(nn.Linear(hidden+100, hidden))
-                info.append(nn.ReLU())
-            else:
-                info.append(nn.Linear(hidden, env.action_space.shape[0]))
-                info.append(nn.Tanh())
+        info.append(nn.LeakyReLU())
+        info.append(nn.LayerNorm(400))
+        info.append(nn.Linear(hidden+100, hidden))
+        info.append(nn.LeakyReLU())
+        info.append(nn.LayerNorm(hidden))
+        info.append(nn.Linear(hidden, env.action_space.shape[0]))
+        info.append(nn.Tanh())
         self.net = nn.Sequential(*info)
-        self.optim = optim.Adam(self.parameters(), lr = lr)
+        self.optim = optim.Adam(self.parameters(), lr = lr, weight_decay=0.0001)
         self.apply(weight_init)
     def forward(self, state):
 
@@ -52,18 +50,19 @@ class Critic(nn.Module):
         info = []
         info.append(nn.Linear(env.observation_space.shape[0] + env.action_space.shape[0], 
                                            hidden+100))
-        info.append(nn.ReLU())
-
+        info.append(nn.LeakyReLU())
+        info.append(nn.LayerNorm(400))
         info1 = []
         
-        info1.append(nn.Linear(hidden+env.action_space.shape[0]+100, hidden))
-        info1.append(nn.ReLU())
+        info1.append(nn.Linear(hidden+100, hidden))
+        info1.append(nn.LeakyReLU())
+        info1.append(nn.LayerNorm(300))
 
 
         info1.append(nn.Linear(hidden, 1))
         self.net = nn.Sequential(*info)
         self.net1 = nn.Sequential(*info1)
-        self.optim = optim.Adam(self.parameters(), lr = lr)
+        self.optim = optim.Adam(self.parameters(), lr = lr, weight_decay=0.0001)
 
         self.apply(weight_init)
     def forward(self, state, action):
@@ -71,7 +70,6 @@ class Critic(nn.Module):
             action = action.unsqueeze(-1)
         x = torch.cat([state, action], dim=-1)
         x = self.net(x)
-        x = torch.cat([x, action], -1)
 
         return self.net1(x).view(-1)
 
@@ -186,8 +184,6 @@ class TD3:
         self.critic2.optim.zero_grad()
         max = torch.max(q1, q2).mean()
         min = torch.min(q1_, q2_).mean()
-        max1 = torch.max(q1_, q2_).mean()
-        min1 = torch.min(q1, q2).mean()
 
         loss1 = self.loss(target_q, q1)
         loss2 = self.loss(target_q, q2)
