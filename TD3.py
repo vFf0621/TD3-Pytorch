@@ -20,20 +20,20 @@ class Actor(nn.Module):
         info.append(nn.Linear(env.observation_space.shape[0], 
                                            hidden+100 ))
         info.append(nn.ReLU())
-        for i in range(num_layers-1):
-            if i != num_layers - 1:
-                info.append(nn.Linear(hidden+100, hidden))
-                info.append(nn.ReLU())
-            else:
-                info.append(nn.Linear(hidden, env.action_space.shape[0]))
-                info.append(nn.Tanh())
+
+        info.append(nn.Linear(hidden+100, hidden))
+        info.append(nn.LeakyReLU())
+        info.append(nn.LayerNorm(hidden))
+        info.append(nn.Linear(hidden, env.action_space.shape[0]))
+        info.append(nn.Tanh())
         self.net = nn.Sequential(*info)
-        self.optim = optim.Adam(self.parameters(), lr = lr)
+        self.optim = optim.Adam(self.parameters(), lr = lr, weight_decay=0.0001)
     
     def forward(self, state):
 
         return self.net(state)
 
+    
     
 class Critic(nn.Module):
     def __init__(self, env, hidden=300, lr = 0.001):
@@ -41,27 +41,29 @@ class Critic(nn.Module):
         info = []
         info.append(nn.Linear(env.observation_space.shape[0] + env.action_space.shape[0], 
                                            hidden+100))
-        
         info.append(nn.ReLU())
+        info.append(nn.LeakyReLU())
+        info.append(nn.LayerNorm(hidden+100))
+
         info1 = []
         
-        info1.append(nn.Linear(hidden+env.action_space.shape[0]+100, hidden))
-        info1.append(nn.ReLU())
+        info1.append(nn.Linear(hidden+100, hidden))
+        info1.append(nn.LeakyReLU())
+        info1.append(nn.LayerNorm(hidden))
+
 
         info1.append(nn.Linear(hidden, 1))
         self.net = nn.Sequential(*info)
         self.net1 = nn.Sequential(*info1)
-        self.optim = optim.Adam(self.parameters(), lr = lr)
-
+        self.optim = optim.Adam(self.parameters(), lr = lr, weight_decay=0.0001)
 
     def forward(self, state, action):
         if len(action.shape) < len(state.shape):
             action = action.unsqueeze(-1)
-        x = torch.cat([state, action], dim=1)
+        x = torch.cat([state, action], dim=-1)
         x = self.net(x)
-        x = torch.cat([x, action], -1)
 
-        return self.net1(x)
+        return self.net1(x).view(-1)
   
 class TD3:
     def __init__(self, env, BATCH_SIZE=100):
