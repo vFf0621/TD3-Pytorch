@@ -26,7 +26,7 @@ if __name__ == '__main__':
     env = gym.make('Ant-v2')
     project_name = 'TD3'
     wandb.init(project=project_name, entity='fguan06', settings=wandb.Settings(start_method="thread"))
-    wandb.run.name = "TD3-Walker2D"
+    wandb.run.name = "TD3-Ant-v2"
 
     agent = TD3(env)
     ys = []
