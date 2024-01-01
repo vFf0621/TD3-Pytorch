@@ -30,9 +30,11 @@ class Actor(nn.Module):
                                            hidden+100 ))
         info.append(nn.LeakyReLU())
         info.append(nn.LayerNorm(400))
+
         info.append(nn.Linear(hidden+100, hidden))
         info.append(nn.LeakyReLU())
         info.append(nn.LayerNorm(hidden))
+
         info.append(nn.Linear(hidden, env.action_space.shape[0]))
         info.append(nn.Tanh())
         self.net = nn.Sequential(*info)
@@ -182,14 +184,15 @@ class TD3:
         q1, q2 = self._get_values(states, actions)
         self.critic1.optim.zero_grad()
         self.critic2.optim.zero_grad()
-        max = torch.max(q1, q2).mean()
-        min = torch.min(q1_, q2_).mean()
 
         loss1 = self.loss(target_q, q1)
         loss2 = self.loss(target_q, q2)
         loss = (loss1 + loss2)/2 
-        dev = nn.HuberLoss()(max.mean(), min.mean())
-        loss += dev
+        max = torch.max(q1, q2)
+        min = torch.min(q1_, q2_)
+        #dev = nn.HuberLoss()(max.mean(), min.mean())
+        
+        #loss += dev
         loss.backward(retain_graph=True)
 
         
@@ -209,6 +212,5 @@ class TD3:
 
             self.actor.optim.step()
             self.soft_update()
-
 
 
